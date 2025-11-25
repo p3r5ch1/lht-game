@@ -1,0 +1,1312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Healthy Hangar Showdown - Lufthansa Technik</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Fonts -->
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Roboto:wght@400;700&display=swap');
+      
+      body {
+        margin: 0;
+        overflow: hidden;
+        background-color: #1a1a1a;
+        touch-action: none;
+        font-family: 'Roboto', sans-serif;
+      }
+
+      /* Retro Font Helper */
+      .font-retro {
+        font-family: 'Press Start 2P', cursive;
+      }
+    </style>
+
+    <!-- React & Babel Standalone -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script type="importmap">
+{
+  "imports": {
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.554.0"
+  }
+}
+</script>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        /*******************************************************
+         * 1. CONSTANTS & CONFIG
+         *******************************************************/
+        const CANVAS_WIDTH = 1280;
+        const CANVAS_HEIGHT = 720;
+
+        const COLORS = {
+            LHT_BLUE: '#00205B',
+            LHT_BLUE_LIGHT: '#053485',
+            LHT_YELLOW: '#FFCC00',
+            LHT_GREY: '#87A9C3',
+            BG_DARK: '#001233',
+            FLOOR: '#3F4E5A',
+            HEALTH_GREEN: '#4ADE80',
+            DANGER_RED: '#EF4444',
+            WHITE: '#FFFFFF',
+        };
+
+        const GRAVITY = 2200;
+        const PLAYER_SPEED = 450;
+        const JUMP_FORCE = -950;
+        const BOSS_SPEED = 200;
+
+        const MAX_TIME = 90;
+        const MAX_PLAYER_HEALTH = 100;
+        const MAX_ENERGY = 100;
+        const DAMAGE_FROM_BOSS = 15;
+        const HEAL_FROM_ITEM = 10;
+        const ENERGY_FROM_ITEM = 20;
+        const BOSS_MAX_HP = 3;
+
+        const KEYS = {
+            LEFT: ['ArrowLeft', 'a', 'A'],
+            RIGHT: ['ArrowRight', 'd', 'D'],
+            JUMP: ['ArrowUp', ' ', 'w', 'W'],
+            ACTION: ['e', 'E', 'Shift'],
+            PAUSE: ['Escape', 'p', 'P']
+        };
+
+        const GameState = {
+            INTRO: 'INTRO',
+            PLAYING: 'PLAYING',
+            VICTORY: 'VICTORY',
+            GAME_OVER: 'GAME_OVER',
+            PAUSED: 'PAUSED'
+        };
+
+        /*******************************************************
+         * 2. ICONS (Inline SVG Components to replace Lucide)
+         *******************************************************/
+        const Icons = {
+            Heart: ({ color }) => (
+                <svg width="24" height="24" viewBox="0 0 24 24" fill={color} stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>
+            ),
+            Zap: ({ color }) => (
+                <svg width="24" height="24" viewBox="0 0 24 24" fill={color} stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+            ),
+            Clock: () => (
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            ),
+            Trophy: () => (
+                <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#FFCC00" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
+            ),
+            AlertTriangle: () => (
+                <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            ),
+            Play: () => (
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            ),
+            RotateCcw: () => (
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+            )
+        };
+
+        /*******************************************************
+         * 3. AUDIO SERVICE
+         *******************************************************/
+        class AudioService {
+            constructor() {
+                this.ctx = null;
+                this.masterGain = null;
+                this.isMuted = false;
+                this.musicInterval = null;
+                this.noteIndex = 0;
+                this.synthesis = null;
+            }
+
+            init() {
+                if (!this.ctx) {
+                    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                    this.masterGain = this.ctx.createGain();
+                    this.masterGain.gain.value = 0.3;
+                    this.masterGain.connect(this.ctx.destination);
+                }
+                if (this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+                if ('speechSynthesis' in window) {
+                    this.synthesis = window.speechSynthesis;
+                }
+            }
+
+            speak(text, pitch = 1, rate = 1.2) {
+                if (!this.synthesis || this.isMuted) return;
+                this.synthesis.cancel();
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.pitch = pitch;
+                utterance.rate = rate;
+                utterance.volume = 0.6;
+                const voices = this.synthesis.getVoices();
+                const preferredVoice = voices.find(v => v.lang.includes('en')) || voices[0];
+                if (preferredVoice) utterance.voice = preferredVoice;
+                this.synthesis.speak(utterance);
+            }
+
+            playJump() {
+                if (!this.ctx || this.isMuted) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(150, this.ctx.currentTime);
+                osc.frequency.linearRampToValueAtTime(300, this.ctx.currentTime + 0.1);
+                gain.gain.setValueAtTime(0.05, this.ctx.currentTime);
+                gain.gain.linearRampToValueAtTime(0, this.ctx.currentTime + 0.1);
+                osc.connect(gain);
+                gain.connect(this.masterGain);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.1);
+            }
+
+            playCollectGood() {
+                if (!this.ctx || this.isMuted) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(880, this.ctx.currentTime);
+                osc.frequency.setValueAtTime(1760, this.ctx.currentTime + 0.05);
+                gain.gain.setValueAtTime(0.05, this.ctx.currentTime);
+                gain.gain.linearRampToValueAtTime(0, this.ctx.currentTime + 0.1);
+                osc.connect(gain);
+                gain.connect(this.masterGain);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.1);
+            }
+
+            playCollectBad() {
+                if (!this.ctx || this.isMuted) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(150, this.ctx.currentTime);
+                osc.frequency.linearRampToValueAtTime(50, this.ctx.currentTime + 0.2);
+                gain.gain.setValueAtTime(0.05, this.ctx.currentTime);
+                gain.gain.linearRampToValueAtTime(0, this.ctx.currentTime + 0.2);
+                osc.connect(gain);
+                gain.connect(this.masterGain);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.2);
+            }
+
+            playHealthWave() {
+                if (!this.ctx || this.isMuted) return;
+                const t = this.ctx.currentTime;
+                
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(100, t);
+                osc.frequency.exponentialRampToValueAtTime(800, t + 0.2);
+                gain.gain.setValueAtTime(0.2, t);
+                gain.gain.linearRampToValueAtTime(0, t + 0.3);
+                osc.connect(gain);
+                gain.connect(this.masterGain);
+                osc.start(t);
+                osc.stop(t + 0.3);
+
+                const boom = this.ctx.createOscillator();
+                const boomGain = this.ctx.createGain();
+                boom.type = 'square';
+                boom.frequency.setValueAtTime(50, t);
+                boom.frequency.exponentialRampToValueAtTime(10, t + 1.0);
+                
+                const noise = this.ctx.createOscillator(); 
+                noise.frequency.value = 30;
+                noise.type = 'sawtooth';
+
+                boomGain.gain.setValueAtTime(0.8, t);
+                boomGain.gain.exponentialRampToValueAtTime(0.01, t + 1.0);
+                
+                boom.connect(boomGain);
+                boomGain.connect(this.masterGain);
+                boom.start(t);
+                boom.stop(t + 1.0);
+            }
+
+            playBossHit() {
+                if (!this.ctx || this.isMuted) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(200, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(10, this.ctx.currentTime + 0.4);
+                gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.4);
+                osc.connect(gain);
+                gain.connect(this.masterGain);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.4);
+            }
+
+            playWinTheme() {
+                this.stopMusic();
+                if (!this.ctx || this.isMuted) return;
+                
+                setTimeout(() => this.speak("Mission Accomplished. Stay Healthy.", 1, 1), 500);
+
+                const notes = [523.25, 783.99, 659.25, 523.25, 783.99, 659.25, 1046.50];
+                let time = this.ctx.currentTime;
+                notes.forEach((freq) => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.frequency.value = freq;
+                    osc.type = 'square';
+                    gain.gain.setValueAtTime(0.1, time);
+                    gain.gain.exponentialRampToValueAtTime(0.01, time + 0.15);
+                    osc.connect(gain);
+                    gain.connect(this.masterGain);
+                    osc.start(time);
+                    osc.stop(time + 0.2);
+                    time += 0.15;
+                });
+            }
+
+            startMusic() {
+                if (!this.ctx || this.isMuted) return;
+                if (this.musicInterval) return;
+
+                this.noteIndex = 0;
+                const bpm = 150; 
+                const beatDur = 60 / bpm; 
+                const stepDur = beatDur / 4; 
+
+                let tick = 0;
+                let nextNoteTime = this.ctx.currentTime;
+                
+                this.speak("Azubi Fit");
+
+                const bassNote = (freq, duration, time) => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'triangle';
+                    osc.frequency.value = freq;
+                    gain.gain.setValueAtTime(0.2, time);
+                    gain.gain.linearRampToValueAtTime(0.2, time + duration * 0.9);
+                    gain.gain.linearRampToValueAtTime(0, time + duration);
+                    osc.connect(gain);
+                    gain.connect(this.masterGain);
+                    osc.start(time);
+                    osc.stop(time + duration);
+                };
+
+                const leadNote = (freq, duration, time) => {
+                    if (freq <= 0) return;
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'square'; 
+                    osc.frequency.value = freq;
+                    gain.gain.setValueAtTime(0.08, time); 
+                    gain.gain.exponentialRampToValueAtTime(0.01, time + duration * 0.6);
+                    
+                    osc.connect(gain);
+                    gain.connect(this.masterGain);
+                    osc.start(time);
+                    osc.stop(time + duration);
+                };
+
+                const schedule = () => {
+                    const lookahead = 0.1;
+                    
+                    while (nextNoteTime < this.ctx.currentTime + lookahead) {
+                        const loopPos = tick % 128; 
+                        const barPos = tick % 32;
+
+                        if (tick > 0) {
+                            if (loopPos === 0) this.speak("Azubi Fit", 1.2, 1.1);
+                            if (loopPos === 64) this.speak("Health Management", 0.9, 1.2);
+                        }
+
+                        if (tick % 2 === 0) {
+                            let bassFreq = 0;
+                            if (barPos < 8) bassFreq = 130.81; 
+                            else if (barPos < 16) bassFreq = 174.61; 
+                            else if (barPos < 24) bassFreq = 196.00; 
+                            else bassFreq = 130.81; 
+                            
+                            if (tick % 4 === 2) bassFreq *= 2; 
+                            
+                            bassNote(bassFreq, stepDur * 2, nextNoteTime);
+                        }
+
+                        const cMajArp = [261.63, 329.63, 392.00, 523.25, 329.63, 392.00, 523.25, 493.88];
+                        const fMajArp = [174.61, 220.00, 261.63, 349.23, 220.00, 261.63, 349.23, 329.63];
+                        
+                        let note = 0;
+                        const melIndex = Math.floor(barPos / 1) % 8;
+
+                        if (barPos < 8) note = cMajArp[melIndex];
+                        else if (barPos < 16) note = fMajArp[melIndex];
+                        else if (barPos < 24) note = cMajArp[melIndex] * 1.5; 
+                        else note = cMajArp[melIndex];
+
+                        if (tick % 2 !== 0) {
+                            leadNote(note * 2, stepDur, nextNoteTime);
+                        } else {
+                            leadNote(note, stepDur, nextNoteTime);
+                        }
+
+                        const beatInBar = barPos % 16;
+                        if (beatInBar === 4 || beatInBar === 12) {
+                            const noise = this.ctx.createOscillator();
+                            const nGain = this.ctx.createGain();
+                            noise.type = 'square';
+                            noise.frequency.value = Math.random() * 500 + 100;
+                            nGain.gain.setValueAtTime(0.1, nextNoteTime);
+                            nGain.gain.exponentialRampToValueAtTime(0.01, nextNoteTime + 0.1);
+                            noise.connect(nGain);
+                            nGain.connect(this.masterGain);
+                            noise.start(nextNoteTime);
+                            noise.stop(nextNoteTime + 0.1);
+                        }
+
+                        if (tick % 2 === 0) {
+                            const hat = this.ctx.createOscillator();
+                            const hGain = this.ctx.createGain();
+                            hat.type = 'square';
+                            hat.frequency.value = 8000;
+                            hGain.gain.setValueAtTime(0.03, nextNoteTime);
+                            hGain.gain.exponentialRampToValueAtTime(0.01, nextNoteTime + 0.03);
+                            hat.connect(hGain);
+                            hGain.connect(this.masterGain);
+                            hat.start(nextNoteTime);
+                            hat.stop(nextNoteTime + 0.03);
+                        }
+
+                        nextNoteTime += stepDur;
+                        tick++;
+                    }
+                };
+
+                this.musicInterval = window.setInterval(schedule, 25);
+            }
+
+            stopMusic() {
+                if (this.musicInterval) {
+                    clearInterval(this.musicInterval);
+                    this.musicInterval = null;
+                }
+                if (this.synthesis) {
+                    this.synthesis.cancel();
+                }
+            }
+        }
+
+        const audioService = new AudioService();
+
+        /*******************************************************
+         * 4. REACT COMPONENTS
+         *******************************************************/
+
+        const { useEffect, useRef, useState, useCallback } = React;
+
+        // --- GameCanvas Component ---
+        const GameCanvas = ({
+            gameState,
+            setGameState,
+            setScore,
+            setTimer,
+            setPlayerHealth,
+            setPlayerEnergy,
+            setBossHealth,
+        }) => {
+            const canvasRef = useRef(null);
+            const requestRef = useRef();
+            const previousTimeRef = useRef();
+
+            // Game State Refs
+            const playerRef = useRef({
+                pos: { x: 100, y: 500 },
+                size: { x: 50, y: 80 },
+                velocity: { x: 0, y: 0 },
+                isGrounded: false,
+                health: MAX_PLAYER_HEALTH,
+                energy: 0,
+                facingRight: true,
+                invincibleTimer: 0,
+                animState: 'IDLE',
+                animFrame: 0,
+            });
+
+            const bossRef = useRef({
+                pos: { x: 800, y: 100 },
+                size: { x: 180, y: 160 },
+                velocity: { x: BOSS_SPEED, y: 0 },
+                health: BOSS_MAX_HP,
+                phase: 1,
+                state: 'IDLE',
+                attackTimer: 0,
+                patternIndex: 0,
+                flashTimer: 0,
+            });
+
+            const projectilesRef = useRef([]);
+            const itemsRef = useRef([]);
+            const particlesRef = useRef([]);
+            const shockwavesRef = useRef([]);
+            const timeLeftRef = useRef(MAX_TIME);
+            const scoreRef = useRef(0);
+            const itemSpawnTimerRef = useRef(0);
+            
+            const keysPressed = useRef(new Set());
+            const lastTimeRef = useRef(0);
+            const frameCountRef = useRef(0);
+            const screenShakeRef = useRef(0);
+
+            const platforms = [
+                { pos: { x: 0, y: 650 }, size: { x: CANVAS_WIDTH, y: 70 }, type: 'FLOOR' },
+                { pos: { x: 100, y: 450 }, size: { x: 250, y: 20 }, type: 'CONTAINER' },
+                { pos: { x: 930, y: 450 }, size: { x: 250, y: 20 }, type: 'CONTAINER' },
+                { pos: { x: 540, y: 350 }, size: { x: 200, y: 20 }, type: 'ELEVATOR' },
+            ];
+
+            const initGame = useCallback(() => {
+                playerRef.current = {
+                    pos: { x: 100, y: 500 },
+                    size: { x: 50, y: 80 },
+                    velocity: { x: 0, y: 0 },
+                    isGrounded: false,
+                    health: MAX_PLAYER_HEALTH,
+                    energy: 0,
+                    facingRight: true,
+                    invincibleTimer: 0,
+                    animState: 'IDLE',
+                    animFrame: 0,
+                };
+                bossRef.current = {
+                    pos: { x: 800, y: 100 },
+                    size: { x: 180, y: 160 },
+                    velocity: { x: BOSS_SPEED, y: 0 },
+                    health: BOSS_MAX_HP,
+                    phase: 1,
+                    state: 'MOVING',
+                    attackTimer: 0,
+                    patternIndex: 0,
+                    flashTimer: 0,
+                };
+                projectilesRef.current = [];
+                itemsRef.current = [];
+                particlesRef.current = [];
+                shockwavesRef.current = [];
+                timeLeftRef.current = MAX_TIME;
+                scoreRef.current = 0;
+                itemSpawnTimerRef.current = 0;
+                keysPressed.current.clear();
+
+                setScore(0);
+                setTimer(MAX_TIME);
+                setPlayerHealth(MAX_PLAYER_HEALTH);
+                setPlayerEnergy(0);
+                setBossHealth(BOSS_MAX_HP);
+            }, [setScore, setTimer, setPlayerHealth, setPlayerEnergy, setBossHealth]);
+
+            useEffect(() => {
+                if (gameState === GameState.INTRO) {
+                    initGame();
+                }
+            }, [gameState, initGame]);
+
+            // --- Main Loop ---
+            const update = (time) => {
+                if (!previousTimeRef.current) previousTimeRef.current = time;
+                const deltaTime = (time - previousTimeRef.current) / 1000;
+                previousTimeRef.current = time;
+
+                const dt = Math.min(deltaTime, 0.05);
+                frameCountRef.current++;
+                if (screenShakeRef.current > 0) screenShakeRef.current -= dt * 20;
+                if (screenShakeRef.current < 0) screenShakeRef.current = 0;
+
+                if (gameState === GameState.PLAYING) {
+                    updateTimer(dt);
+                    updatePlayer(dt);
+                    updateBoss(dt);
+                    updateProjectiles(dt);
+                    updateItems(dt);
+                    updateParticles(dt);
+                    updateShockwaves(dt);
+                    checkCollisions();
+                    
+                    itemSpawnTimerRef.current -= dt;
+                    if (itemSpawnTimerRef.current <= 0) {
+                        spawnItem(true);
+                        itemSpawnTimerRef.current = 1.5; 
+                    }
+                }
+
+                draw();
+
+                if (gameState === GameState.PLAYING || gameState === GameState.INTRO || gameState === GameState.VICTORY || gameState === GameState.GAME_OVER) {
+                    requestRef.current = requestAnimationFrame(update);
+                }
+            };
+
+            useEffect(() => {
+                requestRef.current = requestAnimationFrame(update);
+                return () => {
+                    if (requestRef.current) cancelAnimationFrame(requestRef.current);
+                };
+            }, [gameState]);
+
+            useEffect(() => {
+                const handleKeyDown = (e) => {
+                    keysPressed.current.add(e.key);
+                    if (KEYS.ACTION.includes(e.key)) {
+                        triggerHealthWave();
+                    }
+                };
+                const handleKeyUp = (e) => {
+                    keysPressed.current.delete(e.key);
+                };
+                window.addEventListener('keydown', handleKeyDown);
+                window.addEventListener('keyup', handleKeyUp);
+                return () => {
+                    window.removeEventListener('keydown', handleKeyDown);
+                    window.removeEventListener('keyup', handleKeyUp);
+                };
+            }, [gameState]);
+
+            const triggerHealthWave = () => {
+                if (playerRef.current.energy >= 100 && gameState === GameState.PLAYING) {
+                    audioService.playHealthWave();
+                    playerRef.current.energy = 0;
+                    setPlayerEnergy(0);
+                    screenShakeRef.current = 50;
+
+                    shockwavesRef.current.push({
+                        pos: { 
+                            x: playerRef.current.pos.x + playerRef.current.size.x/2, 
+                            y: playerRef.current.pos.y + playerRef.current.size.y/2 
+                        },
+                        radius: 10,
+                        maxRadius: CANVAS_WIDTH * 2,
+                        life: 1.0
+                    });
+                    
+                    createExplosion(playerRef.current.pos.x + playerRef.current.size.x/2, playerRef.current.pos.y + playerRef.current.size.y/2, 100, COLORS.WHITE);
+                }
+            };
+
+            const updateTimer = (dt) => {
+                timeLeftRef.current -= dt;
+                if (timeLeftRef.current <= 0) {
+                    timeLeftRef.current = 0;
+                    setGameState(GameState.GAME_OVER);
+                }
+                setTimer(Math.ceil(timeLeftRef.current));
+            };
+
+            const updatePlayer = (dt) => {
+                const player = playerRef.current;
+                let moveX = 0;
+                if (KEYS.LEFT.some(k => keysPressed.current.has(k))) moveX = -1;
+                if (KEYS.RIGHT.some(k => keysPressed.current.has(k))) moveX = 1;
+
+                player.velocity.x = moveX * PLAYER_SPEED;
+                player.velocity.y += GRAVITY * dt;
+
+                if (player.isGrounded && KEYS.JUMP.some(k => keysPressed.current.has(k))) {
+                    player.velocity.y = JUMP_FORCE;
+                    player.isGrounded = false;
+                    audioService.playJump();
+                }
+
+                player.pos.x += player.velocity.x * dt;
+                player.pos.y += player.velocity.y * dt;
+
+                if (player.pos.x < 0) player.pos.x = 0;
+                if (player.pos.x + player.size.x > CANVAS_WIDTH) player.pos.x = CANVAS_WIDTH - player.size.x;
+
+                player.isGrounded = false;
+                for (const plat of platforms) {
+                    if (player.velocity.y > 0 && 
+                        player.pos.y + player.size.y >= plat.pos.y && 
+                        player.pos.y + player.size.y <= plat.pos.y + plat.size.y + 20 && 
+                        player.pos.x + player.size.x > plat.pos.x && 
+                        player.pos.x < plat.pos.x + plat.size.x) {
+                            
+                            if (player.pos.y + player.size.y - (player.velocity.y * dt) <= plat.pos.y + 5) {
+                                player.pos.y = plat.pos.y - player.size.y;
+                                player.velocity.y = 0;
+                                player.isGrounded = true;
+                            }
+                    }
+                }
+
+                if (player.invincibleTimer > 0) player.invincibleTimer -= dt;
+
+                player.facingRight = moveX !== 0 ? moveX > 0 : player.facingRight;
+                if (!player.isGrounded) player.animState = 'JUMP';
+                else if (moveX !== 0) player.animState = 'RUN';
+                else player.animState = 'IDLE';
+
+                platforms[3].pos.y = 350 + Math.sin(lastTimeRef.current / 1000) * 100;
+            };
+
+            const updateBoss = (dt) => {
+                const boss = bossRef.current;
+                if (boss.flashTimer > 0) boss.flashTimer -= dt;
+
+                if (boss.state === 'STUNNED') {
+                    boss.attackTimer -= dt;
+                    if (boss.attackTimer <= 0) boss.state = 'MOVING';
+                    return;
+                }
+
+                if (boss.state === 'MOVING') {
+                    boss.pos.x += boss.velocity.x * dt * (1 + (boss.phase * 0.2));
+                    if (boss.pos.x <= 100 || boss.pos.x + boss.size.x >= CANVAS_WIDTH - 100) {
+                        boss.velocity.x *= -1;
+                    }
+                    
+                    boss.attackTimer += dt;
+                    const threshold = Math.max(1.0, 3.5 - (boss.phase * 0.8)); 
+                    
+                    if (boss.attackTimer > threshold) {
+                        boss.state = 'PRE_ATTACK';
+                        boss.attackTimer = 0;
+                    }
+                } else if (boss.state === 'PRE_ATTACK') {
+                    boss.attackTimer += dt;
+                    const warnTime = Math.max(0.5, 1.0 - (boss.phase * 0.2));
+                    if (boss.attackTimer > warnTime) {
+                        boss.state = 'ATTACKING';
+                        boss.attackTimer = 0;
+                        performBossAttack();
+                    }
+                } else if (boss.state === 'ATTACKING') {
+                    boss.attackTimer += dt;
+                    if (boss.attackTimer > 0.5) {
+                        boss.state = 'MOVING';
+                        boss.attackTimer = 0;
+                    }
+                }
+            };
+
+            const updateShockwaves = (dt) => {
+                const boss = bossRef.current;
+                shockwavesRef.current.forEach(wave => {
+                    wave.radius += dt * 2000;
+                    wave.life -= dt * 1.0;
+                    
+                    const bossCenterX = boss.pos.x + boss.size.x / 2;
+                    const bossCenterY = boss.pos.y + boss.size.y / 2;
+                    const dist = Math.hypot(bossCenterX - wave.pos.x, bossCenterY - wave.pos.y);
+                    
+                    if (Math.abs(dist - wave.radius) < 100 && boss.state !== 'STUNNED' && boss.flashTimer <= 0) {
+                        boss.health -= 1;
+                        boss.flashTimer = 1.0;
+                        setBossHealth(boss.health);
+                        audioService.playBossHit();
+                        createExplosion(bossCenterX, bossCenterY, 50, COLORS.LHT_YELLOW);
+                        
+                        projectilesRef.current = [];
+                        
+                        if (boss.health <= 0) {
+                            setGameState(GameState.VICTORY);
+                            audioService.playWinTheme();
+                            createExplosion(boss.pos.x + boss.size.x/2, boss.pos.y + boss.size.y/2, 200, COLORS.LHT_YELLOW);
+                        } else {
+                            boss.phase = (4 - boss.health);
+                            boss.state = 'STUNNED';
+                            boss.attackTimer = 2.0;
+                        }
+                    }
+                    
+                    projectilesRef.current.forEach(p => {
+                        const pDist = Math.hypot(p.pos.x - wave.pos.x, p.pos.y - wave.pos.y);
+                        if (pDist < wave.radius + 50 && p.active) {
+                            p.active = false;
+                            createExplosion(p.pos.x, p.pos.y, 5, COLORS.WHITE);
+                        }
+                    });
+                });
+                shockwavesRef.current = shockwavesRef.current.filter(w => w.life > 0);
+            };
+
+            const performBossAttack = () => {
+                const boss = bossRef.current;
+                const phase = boss.phase;
+                
+                if (phase === 3) {
+                    for(let i=0; i<8; i++) {
+                        setTimeout(() => {
+                            if(bossRef.current.state === 'STUNNED') return;
+                            spawnProjectile('SUGAR', bossRef.current.pos.x + bossRef.current.size.x/2, bossRef.current.pos.y + bossRef.current.size.y, 
+                            Math.atan2(playerRef.current.pos.y - bossRef.current.pos.y, playerRef.current.pos.x - bossRef.current.pos.x));
+                        }, i * 150);
+                    }
+                    for(let i=0; i<8; i++) {
+                        spawnProjectile('JUNK', Math.random() * CANVAS_WIDTH, -50, Math.PI/2);
+                    }
+                    if (Math.random() > 0.5) {
+                        for(let i=-2; i<=2; i++) {
+                            spawnProjectile('SODA', boss.pos.x + boss.size.x/2, boss.pos.y + boss.size.y, Math.PI/2 + (i * 0.4));
+                        }
+                    }
+
+                } else if (phase === 2) {
+                    for(let i=0; i<6; i++) {
+                        spawnProjectile('JUNK', Math.random() * CANVAS_WIDTH, -50, Math.PI/2);
+                    }
+                    
+                    if (Math.random() > 0.4) {
+                        for(let i=-1; i<=1; i++) {
+                            spawnProjectile('SODA', boss.pos.x + boss.size.x/2, boss.pos.y + boss.size.y, Math.PI/2 + (i * 0.3));
+                        }
+                    } else {
+                        for(let i=0; i<3; i++) {
+                            setTimeout(() => {
+                                spawnProjectile('SUGAR', bossRef.current.pos.x + bossRef.current.size.x/2, bossRef.current.pos.y + bossRef.current.size.y, Math.PI/2);
+                            }, i*200);
+                        }
+                    }
+
+                } else {
+                    for(let i=0; i<5; i++) {
+                        spawnProjectile('JUNK', Math.random() * CANVAS_WIDTH, -50, Math.PI/2);
+                    }
+                }
+                spawnItem(false);
+            };
+
+            const spawnProjectile = (type, x, y, angle) => {
+                const phaseSpeedMult = 1.0 + ((bossRef.current.phase - 1) * 0.2);
+                const speed = (type === 'SUGAR' ? 500 : type === 'SODA' ? 400 : 300) * phaseSpeedMult;
+                
+                projectilesRef.current.push({
+                    pos: { x, y },
+                    size: { x: 30, y: 30 },
+                    velocity: { x: Math.cos(angle) * speed, y: Math.sin(angle) * speed },
+                    type,
+                    active: true,
+                    rotation: 0
+                });
+            };
+
+            const spawnItem = (isHealthy) => {
+                const subtype = isHealthy 
+                    ? (Math.random() > 0.5 ? 'APPLE' : 'WATER') 
+                    : (Math.random() > 0.5 ? 'BURGER' : 'FRIES');
+                const dropSpeed = isHealthy ? 350 : 150; 
+
+                itemsRef.current.push({
+                    pos: { x: Math.random() * (CANVAS_WIDTH - 100) + 50, y: -50 },
+                    size: { x: 30, y: 30 },
+                    velocity: { x: 0, y: dropSpeed }, 
+                    type: isHealthy ? 'HEALTHY' : 'UNHEALTHY',
+                    subtype: subtype,
+                    active: true,
+                    floatOffset: Math.random() * 100
+                });
+            };
+
+            const updateProjectiles = (dt) => {
+                projectilesRef.current.forEach(p => {
+                    if (!p.active) return;
+                    p.pos.x += p.velocity.x * dt;
+                    p.pos.y += p.velocity.y * dt;
+                    p.rotation += 5 * dt;
+
+                    if (p.type === 'JUNK' || p.type === 'SODA') {
+                        p.velocity.y += 400 * dt; 
+                    }
+
+                    if (p.pos.y > CANVAS_HEIGHT + 50 || p.pos.x < -50 || p.pos.x > CANVAS_WIDTH + 50) {
+                        p.active = false;
+                    }
+                });
+                projectilesRef.current = projectilesRef.current.filter(p => p.active);
+            };
+
+            const updateItems = (dt) => {
+                itemsRef.current.forEach(item => {
+                    if (!item.active) return;
+                    item.pos.y += item.velocity.y * dt;
+                    item.pos.x += Math.sin(item.pos.y * 0.02 + item.floatOffset) * 1;
+                    
+                    if (item.pos.y > 620) {
+                        item.velocity.y = 0;
+                        item.pos.y = 620;
+                    }
+                });
+            };
+
+            const updateParticles = (dt) => {
+                particlesRef.current.forEach(p => {
+                    p.pos.x += p.velocity.x * dt;
+                    p.pos.y += p.velocity.y * dt;
+                    p.life -= dt;
+                    p.velocity.y += GRAVITY * 0.5 * dt;
+                });
+                particlesRef.current = particlesRef.current.filter(p => p.life > 0);
+            };
+
+            const createExplosion = (x, y, count, color) => {
+                for(let i=0; i<count; i++) {
+                    const angle = Math.random() * Math.PI * 2;
+                    const speed = Math.random() * 300 + 50;
+                    particlesRef.current.push({
+                        pos: { x, y },
+                        velocity: { x: Math.cos(angle) * speed, y: Math.sin(angle) * speed },
+                        life: 0.5 + Math.random() * 0.5,
+                        color: color,
+                        size: Math.random() * 5 + 2
+                    });
+                }
+            };
+
+            const checkCollisions = () => {
+                const player = playerRef.current;
+                itemsRef.current.forEach(item => {
+                    if (item.active && rectIntersect(player, item)) {
+                        item.active = false;
+                        if (item.type === 'HEALTHY') {
+                            audioService.playCollectGood();
+                            player.health = Math.min(player.health + HEAL_FROM_ITEM, MAX_PLAYER_HEALTH);
+                            player.energy = Math.min(player.energy + ENERGY_FROM_ITEM, MAX_ENERGY);
+                            scoreRef.current += 100;
+                            setPlayerHealth(player.health);
+                            setPlayerEnergy(player.energy);
+                            setScore(scoreRef.current);
+                            createExplosion(item.pos.x, item.pos.y, 10, COLORS.HEALTH_GREEN);
+                        } else {
+                            audioService.playCollectBad();
+                            player.health = Math.max(player.health - 10, 0); 
+                            scoreRef.current = Math.max(scoreRef.current - 50, 0);
+                            setPlayerHealth(player.health);
+                            setScore(scoreRef.current);
+                            createExplosion(item.pos.x, item.pos.y, 10, COLORS.DANGER_RED);
+                        }
+                    }
+                });
+
+                if (player.invincibleTimer <= 0) {
+                    let hit = false;
+                    projectilesRef.current.forEach(p => {
+                        if (p.active && rectIntersect(player, p)) {
+                            hit = true;
+                            p.active = false;
+                        }
+                    });
+                    if (rectIntersect(player, bossRef.current)) {
+                        hit = true;
+                    }
+                    if (hit) {
+                        audioService.playCollectBad();
+                        player.health -= DAMAGE_FROM_BOSS;
+                        player.invincibleTimer = 1.5;
+                        setPlayerHealth(player.health);
+                        createExplosion(player.pos.x + player.size.x/2, player.pos.y + player.size.y/2, 20, COLORS.DANGER_RED);
+                        screenShakeRef.current = 10;
+                        if (player.health <= 0) {
+                            setGameState(GameState.GAME_OVER);
+                        }
+                    }
+                }
+            };
+
+            const rectIntersect = (r1, r2) => {
+                return !(r2.pos.x > r1.pos.x + r1.size.x || 
+                        r2.pos.x + r2.size.x < r1.pos.x || 
+                        r2.pos.y > r1.pos.y + r1.size.y || 
+                        r2.pos.y + r2.size.y < r1.pos.y);
+            };
+
+            const draw = () => {
+                const canvas = canvasRef.current;
+                if (!canvas) return;
+                const ctx = canvas.getContext('2d');
+                if (!ctx) return;
+
+                const shakeX = (Math.random() - 0.5) * screenShakeRef.current;
+                const shakeY = (Math.random() - 0.5) * screenShakeRef.current;
+
+                ctx.save();
+                ctx.translate(shakeX, shakeY);
+                ctx.fillStyle = COLORS.BG_DARK;
+                ctx.fillRect(-shakeX, -shakeY, CANVAS_WIDTH + 20, CANVAS_HEIGHT + 20);
+
+                // Background
+                ctx.fillStyle = '#001a4d';
+                for(let i=0; i<10; i++) ctx.fillRect(i * 150, 100, 20, CANVAS_HEIGHT);
+                ctx.fillStyle = COLORS.LHT_GREY;
+                ctx.globalAlpha = 0.3;
+                ctx.fillRect(200, 300, 100, 200);
+                ctx.fillRect(1000, 300, 100, 200);
+                ctx.globalAlpha = 1.0;
+
+                // Platforms
+                platforms.forEach(plat => {
+                    ctx.fillStyle = plat.type === 'ELEVATOR' ? COLORS.LHT_YELLOW : COLORS.FLOOR;
+                    ctx.fillRect(plat.pos.x, plat.pos.y, plat.size.x, plat.size.y);
+                    if (plat.type === 'CONTAINER' || plat.type === 'ELEVATOR') {
+                        ctx.fillStyle = 'rgba(0,0,0,0.2)';
+                        for(let i=0; i<plat.size.x; i+=20) ctx.fillRect(plat.pos.x + i, plat.pos.y, 10, plat.size.y);
+                    }
+                });
+
+                // Boss
+                const boss = bossRef.current;
+                if (boss.health > 0) {
+                    ctx.save();
+                    ctx.translate(boss.pos.x + boss.size.x/2, boss.pos.y + boss.size.y/2);
+                    if (boss.flashTimer > 0 && Math.floor(performance.now() / 50) % 2 === 0) {
+                        ctx.globalCompositeOperation = 'source-over';
+                        ctx.fillStyle = COLORS.WHITE;
+                    } else {
+                        ctx.fillStyle = '#8B4513';
+                    }
+                    ctx.fillStyle = '#333';
+                    ctx.fillRect(-80, 60, 40, 40);
+                    ctx.fillRect(40, 60, 40, 40);
+                    ctx.fillStyle = '#eebb55'; 
+                    ctx.fillRect(-90, -20, 180, 80);
+                    ctx.fillStyle = '#552200';
+                    ctx.fillRect(-80, 10, 160, 20);
+                    ctx.fillStyle = '#cc3333';
+                    ctx.fillRect(-60, -60, 120, 40);
+                    ctx.fillStyle = '#999'; 
+                    ctx.fillRect(-40, -100, 80, 40);
+                    ctx.fillStyle = boss.state === 'PRE_ATTACK' ? COLORS.DANGER_RED : COLORS.LHT_YELLOW;
+                    ctx.beginPath();
+                    ctx.arc(-20, -80, 10, 0, Math.PI*2);
+                    ctx.arc(20, -80, 10, 0, Math.PI*2);
+                    ctx.fill();
+                    ctx.restore();
+                }
+
+                // Player
+                const player = playerRef.current;
+                if (gameState !== GameState.GAME_OVER || Math.random() > 0.5) {
+                    ctx.save();
+                    if (player.invincibleTimer > 0 && Math.floor(performance.now() / 50) % 2 === 0) ctx.globalAlpha = 0.5;
+                    ctx.translate(player.pos.x + player.size.x/2, player.pos.y + player.size.y/2);
+                    if (!player.facingRight) ctx.scale(-1, 1);
+                    ctx.fillStyle = COLORS.LHT_BLUE;
+                    ctx.fillRect(-20, -30, 40, 60);
+                    if (player.animState === 'RUN') {
+                        const runOffset = Math.sin(performance.now() / 50) * 10;
+                        ctx.fillRect(-20, 30, 15, 25 + runOffset);
+                        ctx.fillRect(5, 30, 15, 25 - runOffset);
+                    } else {
+                        ctx.fillRect(-20, 30, 15, 25);
+                        ctx.fillRect(5, 30, 15, 25);
+                    }
+                    ctx.fillStyle = '#ffccaa';
+                    ctx.fillRect(-15, -55, 30, 25);
+                    ctx.fillStyle = COLORS.LHT_BLUE_LIGHT;
+                    ctx.fillRect(-18, -60, 36, 10);
+                    ctx.fillStyle = COLORS.LHT_YELLOW;
+                    ctx.fillRect(-5, -20, 10, 5);
+                    ctx.restore();
+                    ctx.globalAlpha = 1.0;
+                }
+
+                itemsRef.current.forEach(item => {
+                    if (!item.active) return;
+                    ctx.save();
+                    ctx.translate(item.pos.x + item.size.x/2, item.pos.y + item.size.y/2);
+                    if (item.type === 'HEALTHY') {
+                        ctx.fillStyle = COLORS.HEALTH_GREEN;
+                        ctx.beginPath();
+                        ctx.arc(0,0, 15, 0, Math.PI*2);
+                        ctx.fill();
+                    } else {
+                        ctx.fillStyle = COLORS.DANGER_RED;
+                        ctx.fillRect(-15, -15, 30, 30);
+                    }
+                    ctx.restore();
+                });
+
+                projectilesRef.current.forEach(proj => {
+                    ctx.save();
+                    ctx.translate(proj.pos.x, proj.pos.y);
+                    ctx.rotate(proj.rotation);
+                    if (proj.type === 'JUNK') {
+                        ctx.fillStyle = '#8B4513';
+                        ctx.fillRect(-15, -15, 30, 30);
+                    } else if (proj.type === 'SODA') {
+                        ctx.fillStyle = '#aaffff';
+                        ctx.beginPath();
+                        ctx.arc(0,0, 15, 0, Math.PI*2);
+                        ctx.fill();
+                    } else if (proj.type === 'SUGAR') {
+                        ctx.fillStyle = '#ffffff';
+                        ctx.fillRect(-10, -10, 20, 20);
+                    }
+                    ctx.restore();
+                });
+
+                particlesRef.current.forEach(p => {
+                    ctx.fillStyle = p.color;
+                    ctx.globalAlpha = p.life;
+                    ctx.beginPath();
+                    ctx.arc(p.pos.x, p.pos.y, p.size, 0, Math.PI*2);
+                    ctx.fill();
+                    ctx.globalAlpha = 1.0;
+                });
+
+                shockwavesRef.current.forEach(wave => {
+                    ctx.save();
+                    ctx.translate(wave.pos.x, wave.pos.y);
+                    const grd = ctx.createRadialGradient(0, 0, wave.radius * 0.7, 0, 0, wave.radius);
+                    grd.addColorStop(0, 'rgba(255, 255, 255, 0)'); 
+                    grd.addColorStop(0.8, 'rgba(74, 222, 128, 0.8)');
+                    grd.addColorStop(0.9, 'rgba(255, 255, 255, 1.0)');
+                    grd.addColorStop(1, 'rgba(255, 255, 255, 0)');
+                    ctx.fillStyle = grd;
+                    ctx.beginPath();
+                    ctx.arc(0, 0, wave.radius, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.beginPath();
+                    ctx.arc(0, 0, wave.radius * 0.95, 0, Math.PI * 2);
+                    ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+                    ctx.lineWidth = 10;
+                    ctx.stroke();
+                    ctx.restore();
+                });
+
+                ctx.restore();
+            };
+
+            return (
+                <canvas
+                    ref={canvasRef}
+                    width={CANVAS_WIDTH}
+                    height={CANVAS_HEIGHT}
+                    className="w-full h-full object-contain bg-black shadow-2xl border-4 border-slate-700"
+                    style={{ maxWidth: '100%', maxHeight: '100%' }}
+                />
+            );
+        };
+
+        // --- UIOverlay Component ---
+        const UIOverlay = ({
+            gameState,
+            score,
+            timer,
+            playerHealth,
+            playerEnergy,
+            bossHealth,
+            onStart,
+            onRestart,
+        }) => {
+            const Bar = ({ value, max, color, icon: Icon }) => (
+                <div className="flex items-center gap-2 w-48">
+                    <Icon color={color} />
+                    <div className="h-4 flex-1 bg-gray-800 rounded-full overflow-hidden border border-gray-600">
+                        <div 
+                        className="h-full transition-all duration-300" 
+                        style={{ width: `${(value / max) * 100}%`, backgroundColor: color }}
+                        />
+                    </div>
+                </div>
+            );
+
+            const BossBar = () => (
+                <div className="flex flex-col items-center w-1/3">
+                    <span className="text-yellow-400 font-bold text-sm mb-1 tracking-widest">SNACK-BOT 3000</span>
+                    <div className="w-full h-6 bg-gray-900 border-2 border-red-900 flex">
+                        {Array.from({length: BOSS_MAX_HP}).map((_, i) => (
+                        <div key={i} className="flex-1 border-r border-gray-900 last:border-none relative">
+                            <div 
+                                className="absolute inset-0 bg-red-600 transition-all duration-500"
+                                style={{ opacity: i < bossHealth ? 1 : 0.1 }}
+                            />
+                        </div>
+                        ))}
+                    </div>
+                </div>
+            );
+
+            if (gameState === GameState.INTRO) {
+                return (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm z-50">
+                        <div className="bg-[#00205B] p-8 rounded-lg border-4 border-[#FFCC00] text-center shadow-2xl max-w-2xl">
+                        <h1 className="text-4xl font-black text-white mb-4 tracking-tighter font-retro">
+                            HEALTHY HANGAR<br/><span className="text-[#FFCC00]">SHOWDOWN</span>
+                        </h1>
+                        <p className="text-blue-100 mb-6 text-lg">
+                            Snack-Bot has invaded the hangar! <br/>
+                            Collect healthy food to charge your <span className="text-green-400 font-bold">Health Wave</span>.
+                            Use it to cleanse the bot of its junk food armor!
+                        </p>
+                        <div className="grid grid-cols-2 gap-4 text-left bg-blue-900/50 p-4 rounded mb-8 text-sm text-white">
+                            <div>
+                            <strong className="text-[#FFCC00]">Controls:</strong>
+                            <ul className="mt-2 space-y-1">
+                                <li>WASD / Arrows : Move & Jump</li>
+                                <li>E / Shift : <span className="text-green-400">Health Wave</span> (When charged)</li>
+                            </ul>
+                            </div>
+                            <div>
+                            <strong className="text-[#FFCC00]">Goal:</strong>
+                            <ul className="mt-2 space-y-1">
+                                <li>Collect Green Items (+Health/Energy)</li>
+                                <li>Avoid Red Items (-Health)</li>
+                                <li>Hit Boss 3 times with Wave!</li>
+                            </ul>
+                            </div>
+                        </div>
+                        <button 
+                            onClick={() => { audioService.init(); audioService.startMusic(); onStart(); }}
+                            className="px-8 py-4 bg-[#FFCC00] text-[#00205B] font-bold text-xl rounded hover:bg-white hover:scale-105 transition-transform flex items-center gap-2 mx-auto"
+                        >
+                            <Icons.Play /> START MISSION
+                        </button>
+                        </div>
+                    </div>
+                );
+            }
+
+            if (gameState === GameState.VICTORY) {
+                return (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#00205B]/90 z-50">
+                        <div className="text-center animate-bounce mb-8">
+                            <div className="mx-auto mb-4 flex justify-center"><Icons.Trophy /></div>
+                            <h1 className="text-6xl font-black text-white">VICTORY!</h1>
+                        </div>
+                        <div className="bg-white p-6 rounded-lg text-[#00205B] max-w-md text-center shadow-xl">
+                            <h2 className="text-2xl font-bold mb-2">Hangar Secured!</h2>
+                            <p className="mb-4">Score: <span className="font-mono font-bold text-xl">{score}</span></p>
+                            <div className="p-4 bg-blue-50 rounded border-l-4 border-[#FFCC00] text-left mb-6">
+                            <p className="text-sm italic">
+                                "Stay healthy, fly high together. Choosing water and fruits keeps your energy stable for the long haul!"
+                            </p>
+                            </div>
+                            <div className="space-y-3">
+                            <button className="w-full py-3 bg-[#00205B] text-white font-bold rounded hover:bg-blue-800">
+                                Open Newsletter
+                            </button>
+                            <button 
+                                onClick={onRestart}
+                                className="w-full py-3 border-2 border-[#00205B] text-[#00205B] font-bold rounded hover:bg-blue-50 flex items-center justify-center gap-2"
+                            >
+                                <Icons.RotateCcw /> Play Again
+                            </button>
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+
+            if (gameState === GameState.GAME_OVER) {
+                return (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/90 z-50">
+                        <div className="text-center mb-8">
+                            <div className="mx-auto mb-4 flex justify-center"><Icons.AlertTriangle /></div>
+                            <h1 className="text-6xl font-black text-white font-retro">DEFEAT</h1>
+                        </div>
+                        <p className="text-gray-400 mb-8">The sugar crash hit hard...</p>
+                        <button 
+                            onClick={onRestart}
+                            className="px-8 py-4 bg-red-600 text-white font-bold text-xl rounded hover:bg-red-500 transition-transform flex items-center gap-2"
+                        >
+                            <Icons.RotateCcw /> TRY AGAIN
+                        </button>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="absolute inset-0 pointer-events-none p-4 flex flex-col justify-between">
+                    <div className="flex justify-between items-start">
+                        <div className="bg-black/50 p-2 rounded backdrop-blur-sm text-white font-mono text-xl">
+                            SCORE: <span className="text-[#FFCC00]">{score.toString().padStart(6, '0')}</span>
+                        </div>
+                        <BossBar />
+                        <div className={`bg-black/50 p-2 rounded backdrop-blur-sm font-mono text-xl flex items-center gap-2 ${timer < 10 ? 'text-red-500 animate-pulse' : 'text-white'}`}>
+                            <Icons.Clock /> {Math.floor(timer / 60)}:{(timer % 60).toString().padStart(2, '0')}
+                        </div>
+                    </div>
+                    <div className="flex justify-between items-end">
+                        <div className="space-y-2 bg-black/40 p-3 rounded-lg backdrop-blur-md">
+                            <div className="flex items-center gap-2">
+                                <span className="text-white text-xs font-bold w-12">HP</span>
+                                <Bar value={playerHealth} max={100} color={COLORS.DANGER_RED} icon={Icons.Heart} />
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <span className="text-white text-xs font-bold w-12">WAVE</span>
+                                <Bar value={playerEnergy} max={100} color={COLORS.HEALTH_GREEN} icon={Icons.Zap} />
+                                {playerEnergy >= 100 && (
+                                <div className="animate-bounce text-[#FFCC00] font-bold text-xs bg-black/80 px-2 py-1 rounded">
+                                    PRESS 'E'
+                                </div>
+                                )}
+                            </div>
+                        </div>
+                        <div className="text-white/50 text-xs">LHT Healthy Hangar v1.0</div>
+                    </div>
+                </div>
+            );
+        };
+
+        // --- App Component ---
+        const App = () => {
+            const [gameState, setGameState] = useState(GameState.INTRO);
+            const [score, setScore] = useState(0);
+            const [timer, setTimer] = useState(90);
+            const [playerHealth, setPlayerHealth] = useState(100);
+            const [playerEnergy, setPlayerEnergy] = useState(0);
+            const [bossHealth, setBossHealth] = useState(3);
+
+            const handleStart = useCallback(() => {
+                setGameState(GameState.PLAYING);
+            }, []);
+
+            const handleRestart = useCallback(() => {
+                setGameState(GameState.INTRO);
+            }, []);
+
+            return (
+                <div className="w-full h-screen bg-neutral-900 flex items-center justify-center font-sans select-none">
+                    <div className="relative w-full max-w-[1280px] aspect-video bg-black shadow-2xl overflow-hidden">
+                        <GameCanvas
+                            gameState={gameState}
+                            setGameState={setGameState}
+                            setScore={setScore}
+                            setTimer={setTimer}
+                            setPlayerHealth={setPlayerHealth}
+                            setPlayerEnergy={setPlayerEnergy}
+                            setBossHealth={setBossHealth}
+                        />
+                        <UIOverlay
+                            gameState={gameState}
+                            score={score}
+                            timer={timer}
+                            playerHealth={playerHealth}
+                            playerEnergy={playerEnergy}
+                            bossHealth={bossHealth}
+                            onStart={handleStart}
+                            onRestart={handleRestart}
+                        />
+                    </div>
+                </div>
+            );
+        };
+
+        // --- Mounting ---
+        const rootElement = document.getElementById('root');
+        const root = ReactDOM.createRoot(rootElement);
+        root.render(<App />);
+
+    </script>
+</body>
+</html>
